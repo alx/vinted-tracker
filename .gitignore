@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+
+# Secrets & runtime data — never commit
+.env
+state/
+
+# Local artifacts / scratch
+backup/
+tidy-state-ownership.sh
+cov_test.py
+item_test.py
+page_probe.py

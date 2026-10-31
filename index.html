@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root{--bg:#0f1115;--card:#1a1d24;--fg:#e7e9ee;--mut:#8b93a7;--acc:#5865F2;--green:#57F29C;--red:#ED4245}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 -apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid #262b36;position:sticky;top:0;background:var(--bg);z-index:2}
+h1{font-size:16px;margin:0;font-weight:600}
+#status{color:var(--mut);font-size:12px;margin-left:auto}
+.controls{display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px}
+input,select{background:#0b0d11;color:var(--fg);border:1px solid #2a3140;border-radius:8px;padding:7px 10px;font-size:13px}
+input{min-width:180px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:18px 18px 8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;padding:0 18px 24px}
+.card{background:var(--card);border:1px solid #262b36;border-radius:12px;overflow:hidden;text-decoration:none;color:var(--fg);display:flex;flex-direction:column;transition:transform .08s}
+.card:hover{transform:translateY(-2px);border-color:#334}
+.img{aspect-ratio:1;background:#0b0d11;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.img img{width:100%;height:100%;object-fit:cover}
+.nopic{color:var(--mut);font-size:12px}
+.body{padding:9px 10px 11px}
+.title{font-size:13px;font-weight:550;min-height:34px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.price{font-size:16px;font-weight:700;margin-top:4px}
+.meta{color:var(--mut);font-size:12px;margin-top:2px}
+.seen{color:var(--mut);font-size:11px;margin-top:6px}
+.b{display:inline-block;margin-top:6px;font-size:10px;padding:2px 6px;border-radius:20px;background:#2a3140;color:var(--mut)}
+.b.sold{background:#3a2a2a;color:#c98}
+.soldgrid .price{text-decoration:line-through;color:var(--mut)}
+details{margin:0 18px}
+summary{cursor:pointer;color:var(--mut);font-size:12px;margin-bottom:8px}
+.empty{color:var(--mut);padding:0 18px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏷️ __TITLE__</h1>
+  <span id="count"></span>
+  <span id="status">loading…</span>
+</header>
+<div class="controls">
+  <input id="q" type="search" placeholder="Search title / size / condition…">
+  <select id="sort">
+    <option value="newest">Newest</option>
+    <option value="price_asc">Price ↑</option>
+    <option value="price_desc">Price ↓</option>
+  </select>
+</div>
+<h2 id="active-h">Active</h2>
+<div id="active" class="grid"></div>
+<details id="sold-wrap">
+  <summary id="sold-summary">Sold</summary>
+  <div id="sold" class="grid soldgrid"></div>
+</details>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>(s??"").toString().replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function fmt(d){if(!d)return"";try{return new Date(d).toLocaleDateString();}catch(e){return d;}}
+function card(it){
+  const price=it.price!=null?(it.price+" "+(it.currency||"")):"?";
+  const img=it.photo?('<img loading="lazy" src="'+esc(it.photo)+'" alt="">'):'<div class="nopic">no photo</div>';
+  const badge=it.sold?'<span class="b sold">SOLD</span>':"";
+  const seen=it.first_seen?("since "+fmt(it.first_seen)):"";
+  const href=it.url?it.url:"#";
+  return '<a class="card" href="'+esc(href)+'" target="_blank" rel="noopener">'+
+    '<div class="img">'+img+'</div><div class="body">'+
+    '<div class="title" data-s="'+esc((it.title||"")+" "+(it.size||"")+" "+(it.condition||"")).toLowerCase()+'">'+esc(it.title||("item "+it.id))+'</div>'+
+    '<div class="price">'+esc(price)+'</div>'+
+    '<div class="meta" data-s="'+esc((it.title||"")+" "+(it.size||"")+" "+(it.condition||"")).toLowerCase()+'">'+esc(it.size||"")+(it.size&&it.condition?" · ":"")+(it.condition||"")+'</div>'+
+    '<div class="seen">'+esc(seen)+" "+badge+"</div></div></a>";
+}
+function sortItems(a,mode){
+  const x=a.slice();
+  if(mode==="price_asc")x.sort((p,q)=>(p.price??1e9)-(q.price??1e9));
+  else if(mode==="price_desc")x.sort((p,q)=>(q.price??-1)-(p.price??-1));
+  else x.sort((p,q)=>(q.updated||"").localeCompare(p.updated||""));
+  return x;
+}
+function matches(it,q){
+  if(!q)return true;
+  const hay=((it.title||"")+" "+(it.size||"")+" "+(it.condition||"")).toLowerCase();
+  return hay.includes(q);
+}
+async function refresh(){
+  try{
+    const r=await fetch("/api/items");const items=await r.json();
+    const q=$("#q").value.trim().toLowerCase();
+    const mode=$("#sort").value;
+    const act=items.filter(i=>!i.sold&&matches(i,q));
+    const sold=items.filter(i=>i.sold&&matches(i,q));
+    const mode2=$("#sort").value;
+    $("#active").innerHTML=sortItems(act,mode).map(card).join("")||'<div class="empty">No active items.</div>';
+    $("#sold").innerHTML=sortItems(sold,mode2).map(card).join("")||"";
+    $("#count").textContent=act.length+" active · "+sold.length+" sold";
+    $("#active-h").textContent="Active ("+act.length+")";
+    $("#sold-summary").textContent="Sold ("+sold.length+")";
+    $("#sold-wrap").style.display=sold.length?"":"none";
+    $("#status").textContent="updated "+new Date().toLocaleTimeString();
+  }catch(e){$("#status").textContent="refresh error: "+e;}
+}
+$("#q").addEventListener("input",refresh);
+$("#sort").addEventListener("change",refresh);
+refresh();setInterval(refresh,30000);
+</script>
+</body>
+</html>
